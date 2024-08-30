@@ -5,7 +5,7 @@ import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 from nltk.corpus import stopwords
-from pymongo import MongoClient
+from cassandra.cluster import Cluster
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configurar el path del ejecutable de Tesseract si no está en el PATH del sistema
@@ -70,11 +70,10 @@ def normalizar_palabra(palabra):
     palabra = palabra.lstrip('0')
     # Eliminar guiones bajos al inicio y al final
     palabra = palabra.strip('_')
-    #eliminar :
-    palabra = palabra.strip(':')
-    #eliminar ;
-    palabra = palabra.strip(';')
-    return palabra
+    # Eliminar ':' y ';'
+    palabra = palabra.strip(':;')
+
+    return palabra.strip()
 
 def procesar_indice(inverted_index):
     """ Procesar el índice invertido para normalizar palabras. """
@@ -84,7 +83,7 @@ def procesar_indice(inverted_index):
     for palabra, documentos in inverted_index.items():
         palabra_normalizada = normalizar_palabra(palabra)
         
-        if palabra_normalizada not in palabras_vistas:
+        if palabra_normalizada and palabra_normalizada not in palabras_vistas:
             nuevo_indice[palabra_normalizada] = documentos
             palabras_vistas.add(palabra_normalizada)
 
@@ -96,37 +95,65 @@ def save_inverted_index_to_json(inverted_index, output_path):
     with open(output_path, 'w', encoding='utf-8') as json_file:
         json.dump(sorted_index, json_file, ensure_ascii=False, indent=4)
 
-def save_inverted_index_to_mongodb(inverted_index, db_name, collection_name):
-    """ Guardar el índice invertido en MongoDB. """
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client[db_name]
-    collection = db[collection_name]
-    documents = [{'word': word, 'files': files} for word, files in inverted_index.items()]
-    collection.insert_many(documents)
+def create_cassandra_schema(keyspace, table_name):
+    """ Crear el keyspace y la tabla en Cassandra si no existen. """
+    cluster = Cluster(['127.0.0.1'])
+    session = cluster.connect()
 
-def load_json_to_mongodb(json_path, db_name, collection_name):
-    """ Cargar un archivo JSON en MongoDB. """
-    with open(json_path, 'r', encoding='utf-8') as json_file:
-        data = json.load(json_file)
-    inverted_index = [{'word': word, 'files': files} for word, files in data.items()]
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client[db_name]
-    collection = db[collection_name]
-    collection.insert_many(inverted_index)
+    # Crear keyspace si no existe
+    session.execute(f"""
+    CREATE KEYSPACE IF NOT EXISTS {keyspace}
+    WITH REPLICATION = {{ 'class': 'SimpleStrategy', 'replication_factor': 1 }}
+    """)
+
+    # Conectar al keyspace
+    session.set_keyspace(keyspace)
+
+    # Crear tabla si no existe
+    session.execute(f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        word TEXT PRIMARY KEY,
+        files LIST<TEXT>
+    )
+    """)
+
+    return session
+
+def save_inverted_index_to_cassandra(inverted_index, keyspace, table_name):
+    """ Guardar el índice invertido en Cassandra. """
+    session = create_cassandra_schema(keyspace, table_name)
+
+    for word, files in inverted_index.items():
+        # Filtrar palabras vacías o nulas
+        if not word.strip():
+            print(f"Advertencia: se omitió una palabra vacía o nula en la inserción.")
+            continue
+
+        print(f"Insertando palabra: '{word}' con archivos: {files}")
+        
+        session.execute(f"""
+        INSERT INTO {table_name} (word, files)
+        VALUES (%s, %s)
+        """, (word, files))
+
+    session.shutdown()
 
 # Configurar paths
-folder_path = r"C:\Users\56974\Desktop\seminario 2024\codigo python github\decretos_2023_test"
-output_path = r"C:\Users\56974\Desktop\seminario 2024\codigo python github\indice_invertido_con_stopwords_normalizados_github.json"
+#windows usa \  y mac usa /
+folder_path = "/Users/renzo/Desktop/seminario/decretos_2023_test"
+output_path = "indice_invertido_con_stopwords_normalizados_github.json"
 
-# Nombre de la base de datos y colección en MongoDB
-db_name = 'indice_invertido_decretos_munvalp_test_github'
-collection_name = 'indice_invertido_test_github'
+# Nombre del keyspace y tabla en Cassandra
+keyspace = 'indice_invertido_keyspace'
+table_name = 'indice_invertido_table'
 
 # Verificar si el archivo JSON ya existe
 if os.path.exists(output_path):
-    load_json_to_mongodb(output_path, db_name, collection_name)
+    with open(output_path, 'r', encoding='utf-8') as json_file:
+        inverted_index = json.load(json_file)
+    save_inverted_index_to_cassandra(inverted_index, keyspace, table_name)
 else:
     inverted_index = build_inverted_index_parallel(folder_path)
     procesado_indice = procesar_indice(inverted_index)
     save_inverted_index_to_json(procesado_indice, output_path)
-    save_inverted_index_to_mongodb(procesado_indice, db_name, collection_name)
+    save_inverted_index_to_cassandra(procesado_indice, keyspace, table_name)

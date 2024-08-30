@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados de la Búsqueda</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Estilo para mostrar cada resultado horizontalmente */
+        .resultado {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .resultado span {
+            margin-right: 15px;
+        }
+        .resultado a {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Resultados de la Búsqueda</h1>
+{% if resultados %}
+    <ul style="list-style-type: none; padding: 0;">
+        {% for resultado in resultados %}
+            <li class="resultado">
+                <!-- Mostrar todo el objeto resultado para depuración -->
+                <pre>{{ resultado | safe }}</pre>
+                <!-- Intentar mostrar el nombre del documento -->
+                Documento: {{ resultado['doc_nombre'] }}<br>
+                Similitud: {{ resultado['similitud'] }}<br>
+                <a href="{{ url_for('ver_documento', doc_id=resultado['doc_id']) }}">Ver</a>
+                <a href="{{ url_for('descargar_documento', doc_id=resultado['doc_id']) }}">Descargar</a>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No se encontraron documentos para la consulta.</p>
+{% endif %}
+<a href="{{ url_for('index') }}">Nueva búsqueda</a>
+
+</body>
+</html>
+

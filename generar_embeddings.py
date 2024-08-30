@@ -8,8 +8,8 @@ from transformers import BertTokenizer, BertModel
 # pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'  # Ajusta según el sistema
 
 # Ruta de la carpeta donde se encuentran los documentos PDF
-RUTA_DOCUMENTOS = r'C:\Users\56974\Desktop\seminario 2024\codigo python github\decretos_2023_test'
-OUTPUT_PATH = r'C:\Users\56974\Desktop\seminario 2024\codigo python github\embeddings.npy'
+RUTA_DOCUMENTOS = "/Users/renzo/Desktop/seminario/decretos_2023_test"
+OUTPUT_PATH = 'embeddings.npy'
 
 # Inicializar BERT
 tokenizador = BertTokenizer.from_pretrained('bert-base-uncased')

@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 
 # Configuración de la fachada
-RUTA_DOCUMENTOS = r"C:\Users\56974\Desktop\seminario 2024\codigo python github\decretos_2023_test"
+RUTA_DOCUMENTOS = "/Users/renzo/Desktop/seminario/decretos_2023_test"
 PROCESAR_CONSULTA_SCRIPT = 'procesar_consulta.py'
 RANKING_SCRIPT = 'ranking.py'
 
@@ -33,6 +33,7 @@ def buscar():
 def ver_documento(doc_id):
     ruta_archivo = os.path.join(RUTA_DOCUMENTOS, f"{doc_id}.pdf")
     if os.path.exists(ruta_archivo):
+        # Para texto extraído de un PDF, usar PyPDF2 o similar, este ejemplo asume texto simple.
         with open(ruta_archivo, 'r', encoding='utf-8') as file:
             contenido = file.read()
         return render_template('ver_documento.html', doc_id=doc_id, contenido=contenido)
